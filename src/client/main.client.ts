@@ -1,3 +1,6 @@
-import { makeHello } from "shared/module";
+import { KnitClient as Knit } from "@rbxts/knit";
 
-print(makeHello("main.client.ts"));
+Knit.AddControllers(script.Parent!.FindFirstChild("Controllers")!);
+Knit.Start().andThen(() => {
+    print("Client Started");
+}).catch(warn);
