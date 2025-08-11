@@ -25,3 +25,16 @@ Constants.FRACTION_DECREASE_PER_ROUND = 0.05;
 Constants.MIN_TARGET_FRACTION = 0.1;
 
 export default Constants;
+
+export type ClientGameService = {
+	UpdatePhase: RBXScriptSignal<(phase: string) => void>;
+	UpdateCountdown: RBXScriptSignal<(seconds: number) => void>;
+	NewTargetColor: RBXScriptSignal<(target: { Name: string; Color: Color3 }) => void>;
+};
+
+declare global {
+	interface KnitServices {
+		GameService: ClientGameService;
+	}
+}
+export {};

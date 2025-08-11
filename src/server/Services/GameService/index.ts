@@ -42,7 +42,7 @@ const GameService = Knit.CreateService({
 	Name: "GameService",
 	Client: {
 		UpdateCountdown: new RemoteSignal<(n: number) => void>(),
-		NewTargetColor: new RemoteSignal<(t: { Name: string; Color: Color3 }) => void>(),
+		NewTargetColor: new RemoteSignal<(t: ColorDef) => void>(),
 		UpdatePhase: new RemoteSignal<(phase: string) => void>(),
 	},
 
@@ -51,6 +51,7 @@ const GameService = Knit.CreateService({
 
 		const mapsFolder = ServerStorage.FindFirstChild("Maps") as Folder | undefined;
 		const overworld = mapsFolder?.FindFirstChild("Overworld") as Instance | undefined;
+
 		let clonedMap: Instance | undefined;
 		if (overworld) {
 			clonedMap = overworld.Clone();

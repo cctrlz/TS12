@@ -1,20 +1,15 @@
 import { KnitClient as Knit } from "@rbxts/knit";
 import { Players, ReplicatedStorage, Workspace } from "@rbxts/services";
 import Roact from "@rbxts/roact";
+import Constants, { ClientGameService } from "shared/Modules/Constants";
 
-type GameServiceClient = {
-	UpdatePhase: RBXScriptSignal<(phase: string) => void>;
-	UpdateCountdown: RBXScriptSignal<(seconds: number) => void>;
-	NewTargetColor: RBXScriptSignal<(target: { Name: string; Color: Color3 }) => void>;
-};
-
+// Grab local player and PlayerGui
 const player = Players.LocalPlayer!;
 const playerGui = player.WaitForChild("PlayerGui") as PlayerGui;
 
-import Constants from "shared/Modules/Constants";
-
+// UI component
 interface CountdownProps {
-	countdown?: string;
+	countdown?: number;
 	targetColorName?: string;
 	targetColor?: Color3;
 	phase?: string;
@@ -22,7 +17,7 @@ interface CountdownProps {
 
 class CountdownUI extends Roact.Component<CountdownProps> {
 	render(): Roact.Element {
-		const countdown = this.props.countdown ?? `${Constants.INTERMISSION_DURATION}`;
+		const countdown = this.props.countdown ?? Constants.INTERMISSION_DURATION;
 		const targetColorName = this.props.targetColorName ?? "";
 		const targetColor = this.props.targetColor ?? Color3.fromRGB(255, 255, 255);
 		const phase = this.props.phase ?? "Lobby";
@@ -32,7 +27,7 @@ class CountdownUI extends Roact.Component<CountdownProps> {
 			children["Label"] = Roact.createElement("TextLabel", {
 				Size: UDim2.fromScale(1, 1),
 				BackgroundTransparency: 1,
-				Text: "Round will start in: " + countdown,
+				Text: "Round will start in: " + tostring(countdown),
 				TextScaled: true,
 				Font: Enum.Font.GothamBold,
 				TextColor3: Color3.fromRGB(255, 255, 255),
@@ -98,14 +93,19 @@ class CountdownUI extends Roact.Component<CountdownProps> {
 	}
 }
 
-const uiElement = Roact.createElement(CountdownUI, {
-	countdown: `${Constants.INTERMISSION_DURATION}`,
-	targetColorName: "",
-	targetColor: Color3.fromRGB(255, 255, 255),
-	phase: "Lobby",
-});
-let handle = Roact.mount(uiElement, playerGui, "ColorMatchUI");
+// Mount initial UI
+let handle = Roact.mount(
+	Roact.createElement(CountdownUI, {
+		countdown: Constants.INTERMISSION_DURATION,
+		targetColorName: "",
+		targetColor: Color3.fromRGB(255, 255, 255),
+		phase: "Lobby",
+	}),
+	playerGui,
+	"ColorMatchUI",
+);
 
+// helpers
 const playSoundFromStorage = (name: string, loop?: boolean) => {
 	const soundsFolder = ReplicatedStorage.FindFirstChild("Sounds") as Folder | undefined;
 	const template = soundsFolder?.FindFirstChild(name) as Sound | undefined;
@@ -130,15 +130,13 @@ const GameController = Knit.CreateController({
 	Name: "GameController",
 
 	KnitStart() {
-		const gameService = (Knit as unknown as { GetService(name: string): unknown }).GetService(
-			"GameService",
-		) as GameServiceClient;
+		const gameService = Knit.GetService("GameService") as ClientGameService;
 
 		if (gameService.UpdatePhase) {
 			gameService.UpdatePhase.Connect((phase: string) => {
 				if (phase === "Lobby") {
 					updateUI({
-						countdown: `${Constants.INTERMISSION_DURATION}`,
+						countdown: Constants.INTERMISSION_DURATION,
 						phase: "Lobby",
 						targetColorName: "",
 						targetColor: Color3.fromRGB(255, 255, 255),
@@ -153,9 +151,7 @@ const GameController = Knit.CreateController({
 						loserAmbience.Destroy();
 						loserAmbience = undefined;
 					}
-					if (!lobbyAmbience) {
-						lobbyAmbience = playSoundFromStorage("Ambience2", true);
-					}
+					if (!lobbyAmbience) lobbyAmbience = playSoundFromStorage("Ambience2", true);
 				} else if (phase === "Round") {
 					updateUI({ phase: "Round" });
 					if (lobbyAmbience) {
@@ -168,19 +164,15 @@ const GameController = Knit.CreateController({
 						loserAmbience.Destroy();
 						loserAmbience = undefined;
 					}
-					if (!roundAmbience) {
-						roundAmbience = playSoundFromStorage("Ambience1", true);
-					}
+					if (!roundAmbience) roundAmbience = playSoundFromStorage("Ambience1", true);
 				}
 			});
-		} else {
-			warn("gameService.UpdatePhase is nil on client.");
-		}
+		} else warn("gameService.UpdatePhase is nil on client.");
 
 		if (gameService.UpdateCountdown) {
 			gameService.UpdateCountdown.Connect((seconds: number) => {
 				updateUI({
-					countdown: `${seconds}`,
+					countdown: seconds,
 					phase: "Lobby",
 					targetColorName: "",
 					targetColor: Color3.fromRGB(255, 255, 255),
@@ -191,12 +183,10 @@ const GameController = Knit.CreateController({
 				}
 				countdownBeep = playSoundFromStorage("Countdown", false);
 			});
-		} else {
-			warn("gameService.UpdateCountdown is nil on client.");
-		}
+		} else warn("gameService.UpdateCountdown is nil on client.");
 
 		if (gameService.NewTargetColor) {
-			gameService.NewTargetColor.Connect((target: { Name: string; Color: Color3 }) => {
+			gameService.NewTargetColor.Connect((target) => {
 				updateUI({
 					targetColorName: target.Name,
 					phase: "Round",
@@ -204,10 +194,9 @@ const GameController = Knit.CreateController({
 				});
 				playSoundFromStorage("Status", false);
 			});
-		} else {
-			warn("gameService.NewTargetColor is nil on client.");
-		}
+		} else warn("gameService.NewTargetColor is nil on client.");
 
+		// ambient switch near loser area
 		task.spawn(() => {
 			while (true) {
 				task.wait(0.5);
@@ -220,14 +209,12 @@ const GameController = Knit.CreateController({
 							| Model
 							| undefined;
 					if (loserArea) {
-						let regionCenter: Vector3;
+						let regionCenter = new Vector3();
 						if (loserArea.IsA("BasePart")) {
 							regionCenter = loserArea.Position;
 						} else if (loserArea.IsA("Model") && typeIs((loserArea as Model).GetModelCFrame, "function")) {
 							const model = loserArea as Model;
 							regionCenter = model.GetModelCFrame().Position;
-						} else {
-							regionCenter = new Vector3();
 						}
 						const distance = hrp.Position.sub(regionCenter).Magnitude;
 						if (distance < 50) {
@@ -244,12 +231,10 @@ const GameController = Knit.CreateController({
 								}
 								loserAmbience = playSoundFromStorage("Ambience2", true);
 							}
-						} else {
-							if (loserAmbience) {
-								loserAmbience.Stop();
-								loserAmbience.Destroy();
-								loserAmbience = undefined;
-							}
+						} else if (loserAmbience) {
+							loserAmbience.Stop();
+							loserAmbience.Destroy();
+							loserAmbience = undefined;
 						}
 					}
 				}
